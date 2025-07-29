@@ -173,9 +173,37 @@ vim.opt.tabstop = 4
 vim.opt.softtabstop = 0
 vim.opt.shiftwidth = 0
 
-vim.g.blamer_enabled = true
+-- Git blame settings (enable with command BlamerToggle)
+vim.g.blamer_enabled = false
 vim.g.blamer_date_format = '%m-%d-%Y @ %I:%M %p'
-vim.g.blamer_template = '<committer>, <committer-time> • <commit-short> <summary>'
+vim.g.blamer_template = '<author>, <committer-time> • <commit-short> <summary>'
+
+-- Disable <F1> help shortcut
+vim.keymap.set('n', '<F1>', '<nop>')
+vim.keymap.set('i', '<F1>', '<nop>')
+vim.keymap.set('v', '<F1>', '<nop>')
+vim.keymap.set('x', '<F1>', '<nop>')
+vim.keymap.set('s', '<F1>', '<nop>')
+vim.keymap.set('c', '<F1>', '<nop>')
+vim.keymap.set('o', '<F1>', '<nop>')
+
+-- Set Nvim tree toggle keymap
+vim.keymap.set('n', '<Leader>e', ':NvimTreeToggle <cr>', { desc = "Toggle File Explorer" })
+
+-- Github Copilot Keymaps
+vim.keymap.set("n", "<leader>cc", ":CopilotChatToggle<CR>", { desc = "Copilot Chat" })
+
+-- Toggle GitHub Copilot suggestions with <leader> c t
+vim.keymap.set("n", "<leader>ct", function()
+  -- github/copilot.vim sets this global for you
+  if vim.g.copilot_enabled == 1 then
+    vim.cmd("Copilot disable")
+    vim.notify("Copilot disabled", vim.log.levels.INFO)
+  else
+    vim.cmd("Copilot enable")
+    vim.notify("Copilot enabled", vim.log.levels.INFO)
+  end
+end, { desc = "Toggle Copilot", silent = true })
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
@@ -475,6 +503,7 @@ require('lazy').setup({
       },
     },
   },
+
   {
     -- Main LSP Configuration
     'neovim/nvim-lspconfig',
@@ -483,8 +512,8 @@ require('lazy').setup({
       -- Mason must be loaded before its dependents so we need to set it up here.
       -- NOTE: `opts = {}` is the same as calling `require('mason').setup({})`
       { 'williamboman/mason.nvim', opts = {} },
-      'williamboman/mason-lspconfig.nvim',
-      'WhoIsSethDaniel/mason-tool-installer.nvim',
+      { 'williamboman/mason-lspconfig.nvim' },
+      { 'WhoIsSethDaniel/mason-tool-installer.nvim' },
 
       -- Useful status updates for LSP.
       { 'j-hui/fidget.nvim', opts = {} },
@@ -650,8 +679,7 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
-        --
+        ts_ls = {},
 
         lua_ls = {
           -- cmd = { ... },
@@ -686,7 +714,7 @@ require('lazy').setup({
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
       })
-      require('mason-tool-installer').setup { ensure_installed = ensure_installed }
+      -- require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
         handlers = {
@@ -719,22 +747,23 @@ require('lazy').setup({
     },
     opts = {
       notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
-        local lsp_format_opt
-        if disable_filetypes[vim.bo[bufnr].filetype] then
-          lsp_format_opt = 'never'
-        else
-          lsp_format_opt = 'fallback'
-        end
-        return {
-          timeout_ms = 500,
-          lsp_format = lsp_format_opt,
-        }
-      end,
+      -- format_on_save = function(bufnr)
+      format_on_save = false,
+      -- Disable "format_on_save lsp_fallback" for languages that don't
+      -- have a well standardized coding style. You can add additional
+      -- languages here or re-enable it for the disabled ones.
+      --   local disable_filetypes = { c = true, cpp = true, js = true }
+      --   local lsp_format_opt
+      --   if disable_filetypes[vim.bo[bufnr].filetype] then
+      --     lsp_format_opt = 'never'
+      --   else
+      --     lsp_format_opt = 'fallback'
+      --   end
+      --   return {
+      --     timeout_ms = 500,
+      --     lsp_format = lsp_format_opt,
+      --   }
+      -- end,
       formatters_by_ft = {
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
@@ -951,16 +980,449 @@ require('lazy').setup({
   {
     'nvim-tree/nvim-tree.lua',
     config = function()
-      require('nvim-tree').setup {
+      local nvimTree = require('nvim-tree')
+      nvimTree.setup {
         update_focused_file = { enable = true },
         view = {
           width = 50,
         },
       }
+
     end,
   },
 
   { 'APZelos/blamer.nvim' },
+
+  { 'tpope/vim-fugitive' },
+
+  { "rcarriga/nvim-dap-ui" },
+
+  {
+    'mfussenegger/nvim-dap',
+    dependencies = {
+        "nvim-neotest/nvim-nio"
+    },
+    config = function()
+      Dap = require('dap')
+      Dapui = require('dapui')
+
+      Dapui.setup({
+        controls = {
+          enabled = true,
+          -- The element to attach the controls to, like 'repl' or any other element
+          element = "console", -- You can use 'console' or a dummy element, just not 'repl' if you want to hide that
+          icons = {
+            pause = "PAUSE",
+            play = " RUN ",
+            step_into = "IN",
+            step_over = "OVER",
+            step_out = "OUT",
+            step_back = "BACK",
+            run_last = "LAST",
+            terminate = "STOP",
+          },
+        },
+        layouts = { {
+          elements = { {
+              id = "scopes",
+              size = 0.25
+            }, {
+              id = "watches",
+              size = 0.25
+            }, {
+              id = "stacks",
+              size = 0.25
+            }, {
+              id = "breakpoints",
+              size = 0.25
+            } },
+          position = "left",
+          size = 0.25
+        }, {
+          elements = {
+            -- {
+            --   id = "repl",
+            --   size = 0.5
+            -- },
+            {
+              id = "console",
+              size = 1.0
+            } },
+          position = "bottom",
+          size = 0.30
+        } }
+      })
+
+      vim.keymap.set('n', '<Leader>dt', Dap.toggle_breakpoint, { desc = 'Toggle Breakpoint' })
+      vim.keymap.set('n', '<Leader>dc', Dap.continue, { desc = 'Continue/Start Debugger' })
+      vim.keymap.set('n', '<Leader>dut', Dapui.toggle, { desc = 'Dap UI Toggle' })
+
+      -- Step over: F10
+      vim.keymap.set('n', '<F10>', function() Dap.step_over() end, { desc = "DAP Step Over" })
+      -- Step into: F11
+      vim.keymap.set('n', '<F11>', function() Dap.step_into() end, { desc = "DAP Step Into" })
+      -- Step into: Shift + F11
+      vim.keymap.set('n', '<S-F11>', function() Dap.step_out() end, { desc = "DAP Step Out" })
+
+
+      Dap.adapters["pwa-node"] = {
+        type = "server",
+        host = "localhost",
+        port = "${port}",
+        executable = {
+          command = "node",
+          -- 💀 Make sure to update this path to point to your installation
+          args = {
+            "../../../7MIMIRA/nvim_deps/js-debug/src/dapDebugServer.js",
+            "${port}"
+          }
+          -- args = {"/path/to/js-debug/src/dapDebugServer.js", "${port}"},
+        }
+      }
+
+      Dap.adapters["node"] = {
+        type = "server",
+        host = "localhost",
+        port = "${port}",
+        executable = {
+          command = "node",
+          -- 💀 Make sure to update this path to point to your installation
+          args = {
+            "../../../7MIMIRA/nvim_deps/js-debug/src/dapDebugServer.js",
+            "${port}"
+          }
+          -- args = {"/path/to/js-debug/src/dapDebugServer.js", "${port}"},
+        }
+      }
+
+      Dap.adapters["node-terminal"] = {
+        type = "server",
+        host = "localhost",
+        port = "${port}",
+        executable = {
+          command = "node",
+          -- 💀 Make sure to update this path to point to your installation
+          args = {
+            "../../../7MIMIRA/nvim_deps/js-debug/src/dapDebugServer.js",
+            "${port}"
+          }
+          -- args = {"/path/to/js-debug/src/dapDebugServer.js", "${port}"},
+        }
+      }
+
+      -- DEV
+      Dap.configurations['javascript'] = {
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch file - DEV",
+          program = "${file}",
+          cwd = "${workspaceFolder}",
+          env = {
+            NODE_ENV = "dev",
+            CONFIG_TAGS = "local, main"
+          },
+          -- outputMode = "remote",
+          console = "integratedTerminal"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch file - UAT",
+          program = "${file}",
+          cwd = "${workspaceFolder}",
+          env = {
+            NODE_ENV = "fiber-recovery-uat",
+            CONFIG_TAGS = "local, main",
+            CONFIG_REGION = "us-east-1"
+          },
+          -- outputMode = "remote"
+          console = "integratedTerminal"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch file - PROD",
+          program = "${file}",
+          cwd = "${workspaceFolder}",
+          env = {
+            NODE_ENV = "fiber-recovery-prod",
+            CONFIG_TAGS = "local, main",
+            CONFIG_REGION = "us-east-1"
+          },
+          -- outputMode = "remote"
+          console = "integratedTerminal"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch File - Integration Test",
+          runtimeExecutable = "npm",
+          runtimeArgs = {
+            "run",
+            "test:integration",
+            "--file=${file}"
+          },
+          internalConsoleOptions = "openOnSessionStart",
+          env = {},
+          console = "integratedTerminal",
+          cwd = "${workspaceFolder}"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch File - Unit Test",
+          runtimeExecutable = "npm",
+          runtimeArgs = {
+            "run",
+            "test:unit",
+            "--file=${file}"
+          },
+          internalConsoleOptions = "openOnSessionStart",
+          env = {},
+          console = "integratedTerminal",
+          cwd = "${workspaceFolder}"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch File - Legacy Test",
+          runtimeExecutable = "npm",
+          runtimeArgs = {
+            "run",
+            "test:legacy",
+            "--file=${file}"
+          },
+          internalConsoleOptions = "openOnSessionStart",
+          env = {},
+          console = "integratedTerminal",
+          cwd = "${workspaceFolder}"
+        }
+      }
+
+      Dap.configurations['typescript'] = {
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch file - DEV",
+          program = "${file}",
+          cwd = "${workspaceFolder}",
+          env = {
+            NODE_ENV = "dev",
+            CONFIG_TAGS = "local, main"
+          },
+          -- outputMode = "remote"
+          console = "integratedTerminal"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch file - UAT",
+          program = "${file}",
+          cwd = "${workspaceFolder}",
+          env = {
+            NODE_ENV = "fiber-recovery-uat",
+            CONFIG_TAGS = "local, main",
+            CONFIG_REGION = "us-east-1"
+          },
+          -- outputMode = "remote"
+          console = "integratedTerminal"
+        },
+        {
+          type = "pwa-node",
+          request = "launch",
+          name = "Launch file - PROD",
+          program = "${file}",
+          cwd = "${workspaceFolder}",
+          env = {
+            NODE_ENV = "fiber-recovery-prod",
+            CONFIG_TAGS = "local, main",
+            CONFIG_REGION = "us-east-1"
+          },
+          -- outputMode = "remote"
+          console = "integratedTerminal"
+        },
+      }
+
+      -- Dap.configurations['javascript'] = {
+      --   {
+      --     type = "pwa-node",
+      --     request = "launch",
+      --     name = "Launch file - DEV",
+      --     program = "${file}",
+      --     cwd = "${workspaceFolder}",
+      --     env = {
+      --       NODE_ENV = "dev",
+      --       CONFIG_TAGS = "local, main"
+      --     }
+      --     -- console = 'integratedTerminal'
+      --   },
+      -- }
+      --
+      -- Dap.configurations['typescript'] = {
+      --   {
+      --     type = "pwa-node",
+      --     request = "launch",
+      --     name = "Launch file - DEV",
+      --     program = "${file}",
+      --     cwd = "${workspaceFolder}",
+      --     env = {
+      --       NODE_ENV = "dev",
+      --       CONFIG_TAGS = "local, main"
+      --     }
+      --     -- console = 'integratedTerminal'
+      --   },
+      -- }
+
+      -- Set up Dap UI listeners
+      Dap.listeners.before.attach.dapui_config = function()
+        Dapui.open()
+      end
+      Dap.listeners.before.launch.dapui_config = function()
+        Dapui.open()
+      end
+      -- Dap.listeners.before.event_terminated.dapui_config = function()
+      --   Dapui.close()
+      -- end
+      -- Dap.listeners.before.event_exited.dapui_config = function()
+      --   Dapui.close()
+      -- end
+    end,
+  },
+
+  -- Github Copilot
+  {
+    "CopilotC-Nvim/CopilotChat.nvim",
+    dependencies = {
+      {
+        "github/copilot.vim",
+        config = function()
+          -- Keybinding for accepting Copilot suggestions
+          -- vim.api.nvim_set_keymap("i", "<C-y>", 'copilot#Accept("<CR>")', { expr = true, silent = true, noremap = true })
+          -- vim.api.nvim_set_keymap("i", "<C-y>", 'copilot#Accept("<CR>")', { expr = true, silent = true, noremap = true })
+        end,
+      },         -- the official completion plugin
+      { "nvim-lua/plenary.nvim", branch = "master" },      -- async helpers
+    },
+    build = "make tiktoken",            -- macOS/Linux only; optional
+    opts  = {},                         -- ← place your config here
+    -- cmd   = { "CopilotChat", "CopilotChatOpen" }, -- lazy-load on first use
+  },
+
+  {
+    "LunarVim/bigfile.nvim",
+    event = "BufReadPre"
+    -- config = function()
+    --   require("bigfile").setup({
+    --     filesize = 2,
+    --     features = { -- features to disable
+    --         -- "indent_blankline",
+    --         -- "illuminate",
+    --         "lsp",
+    --         "treesitter",
+    --         "syntax",
+    --         "matchparen",
+    --         "vimopts",
+    --         "filetype",
+    --       }
+    --   })
+    -- end
+  },
+
+  -- {
+  --   'mfussenegger/nvim-dap',
+  --   dependencies = {
+  --     'rcarriga/nvim-dap-ui',             -- UI for DAP
+  --     'theHamsta/nvim-dap-virtual-text',  -- Inline variable display
+  --     'mxsdev/nvim-dap-vscode-js',        -- JS/TS adapter
+  --     -- 'microsoft/vscode-js-debug',        -- Actual debugger (see build step below)
+  --     {
+  --       'microsoft/vscode-js-debug',
+  --       build = 'npm install && npx gulp vsDebugServerBundle && mv dist out'
+  --     },
+  --     'nvim-neotest/nvim-nio'
+  --   },
+  --   config = function()
+  --     require('dap').set_log_level('DEBUG') -- optional
+  --
+  --     -- Link the adapter
+  --     local dap = require("dap")
+  --     local dap_vscode = require("dap-vscode-js")
+  --     --
+  --     dap_vscode.setup({
+  --       -- node_path = "node", -- or your specific Node path
+  --       debugger_path = vim.fn.stdpath("data") .. "/vscode-js-debug",
+  --       adapters = { "pwa-node" },
+  --     })
+  --
+  --
+  --     -- --- Gets a path to a package in the Mason registry.
+  --     -- --- Prefer this to `get_package`, since the package might not always be
+  --     -- --- available yet and trigger errors.
+  --     -- ---@param pkg string
+  --     -- ---@param path? string
+  --     -- local function get_pkg_path(pkg, path)
+  --     --   pcall(require, 'mason')
+  --     --   local root = vim.env.MASON or (vim.fn.stdpath('data') .. '/mason')
+  --     --   path = path or ''
+  --     --   local ret = root .. '/packages/' .. pkg .. '/' .. path
+  --     --   return ret
+  --     -- end
+  --
+  --     dap.adapters['pwa-node'] = {
+  --       type = 'server',
+  --       host = 'localhost',
+  --       port = '${port}',
+  --       executable = {
+  --         command = 'node',
+  --         args = {
+  --           '/Users/joselopez/.local/share/nvim/vscode-js-debug/out/src/vsDebugServer.js',
+  --           '${port}',
+  --         },
+  --       },
+  --     }
+  --
+  --
+  --     -- Enable DAP for JS/TS
+  --     -- ✅ JS/TS configurations using the registered adapter
+  --     for _, language in ipairs({ "typescript", "javascript" }) do
+  --       dap.configurations[language] = {
+  --         {
+  --           type = "pwa-node", -- MUST match one of the adapters above
+  --           request = "launch",
+  --           name = "Launch file",
+  --           program = "${file}",
+  --           cwd = vim.fn.getcwd(),
+  --         },
+  --         {
+  --           type = "pwa-node",
+  --           request = "attach",
+  --           name = "Attach to process",
+  --           processId = require("dap.utils").pick_process,
+  --           cwd = vim.fn.getcwd(),
+  --         },
+  --       }
+  --     end
+  --
+  --     -- require("dapui").setup()
+  --     -- require("nvim-dap-virtual-text").setup()
+  --
+  --     -- Automatically open/close UI
+  --     -- local dapui = require("dapui").setup({})
+  --     -- dap.listeners.after.event_initialized["dapui_config"] = function()
+  --     --   dapui.open()
+  --     -- end
+  --     -- dap.listeners.before.event_terminated["dapui_config"] = function()
+  --     --   dapui.close()
+  --     -- end
+  --     -- dap.listeners.before.event_exited["dapui_config"] = function()
+  --     --   dapui.close()
+  --     -- end
+  --
+  --   end,
+  -- },
+
+  -- { "mxsdev/nvim-dap-vscode-js" },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
